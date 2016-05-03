@@ -1,0 +1,5 @@
+#Lambda Function Project Metadata
+#Tue May 03 17:25:26 IST 2016
+lastDeploymentFunctionName=URLCrawler
+lastDeploymentBucketName=lambda-function-bucket-us-west-2-1461905227539
+lastDeploymentEndpoint=https\://lambda.us-west-2.amazonaws.com/
