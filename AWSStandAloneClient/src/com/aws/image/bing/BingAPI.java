@@ -1,44 +1,39 @@
 package com.aws.image.bing;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.URL;
-import java.net.URLConnection;
-import java.net.URLEncoder;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import org.bson.Document;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import com.aws.image.mongodb.util.MongoDBImageURLsB;
 
 public class BingAPI {
 	private final static String SOURCE = "BING";
 	private final static String CONTRIBUTOR = "NA";
-	private final static String LICENSE = "-1";//-1 means unknown
+	private final static String LICENSE = "4";//Use and share commercially
 
-	static int counter = 0;
-	
 	private CountDownLatch countDownLatchForImageURLs;
 	
 	public BingAPI(CountDownLatch countDownLatchForImageURLs) {
 		this.countDownLatchForImageURLs = countDownLatchForImageURLs;
 	}
 
-	public String callBingAPIForEachKeyword(String query, String synsetCode, String safeSearch, int urlsPerKeyword)
+	/*public String callBingAPIForEachKeyword(String query, String synsetCode, String safeSearch, int urlsPerKeyword)
 			throws IOException, JSONException {
 
 		System.out.println("\n\t\t KEYWORD::" + query);
 		System.out.println("\t No. of urls required::" + urlsPerKeyword);
 		int totalPages;
 
-
+		if(query == null || "".equals(query.trim())) {
+			return null;
+		}
+		
 		//int total = 500;
 		int perPage = 50;
 		
@@ -101,7 +96,7 @@ public class BingAPI {
 					JSONObject tempObject = results.getJSONObject(itr);
 					scrapedImageURL = tempObject.has("MediaUrl") ? tempObject.getString("MediaUrl") : null;
 
-					documentsInBatch.add(getDocumentPerCall(scrapedImageURL, CONTRIBUTOR, LICENSE, safeSearch));
+					documentsInBatch.add(getDocumentPerCall(scrapedImageURL, CONTRIBUTOR, LICENSE, synsetCode, query));
 					
 					counter++;
 
@@ -117,19 +112,64 @@ public class BingAPI {
 		countDownLatchForImageURLs.countDown();
 		return null;
 	}
+	*/
 	
-	public Document getDocumentPerCall(String scrapedImageURL, String contributor, String license, String safeSearch) {
+	public void callBingAPIForEachKeyword(String query, String synsetCode, String safeSearch, int urlsPerKeyword) throws IOException
+	{
+		
+		System.out.println("\t\tKEYWORD ::" + query);
+		System.out.println("No of URLs required ::" + urlsPerKeyword);
+		int itr = 0;
+		
+		List<Document> documentsInBatch = new ArrayList<>();
+		int counter = 0;
+		while(counter < urlsPerKeyword) {
+			documentsInBatch = new ArrayList<>();
+			//System.out.println("\t value of &first ==>" + counter);
+			try {
+				org.jsoup.nodes.Document doc = (org.jsoup.nodes.Document) Jsoup.connect("https://www.bing.com/images/async?q=" + query + "&first=" + counter + "&adlt=" + safeSearch + "&qft=+filterui:license-L2_L3_L4+filterui:imagesize-medium").get();
+				Elements documents =  doc.getElementsByAttributeValueContaining("src2", "https");
+				
+				
+				for (Element src : documents) {
+					String scrapedImageURL = src.hasAttr("src2")? src.attr("src2") : null;
+	
+					itr++;
+	
+					documentsInBatch.add(getDocumentPerCall(scrapedImageURL, CONTRIBUTOR, LICENSE, synsetCode, query, itr));
+					//System.out.println("URL::" + urll);
+					counter++;
+				}
+				
+				insertData(documentsInBatch);
+				
+			} catch (Exception ex) {
+				System.out.println("Error while processing this url --> " + "https://www.bing.com/images/async?q=" + query + "&first=" + counter + "&adlt=" + safeSearch + "&qft=+filterui:license-L2_L3_L4+filterui:imagesize-medium");
+			}
+		}
+		System.out.println("\t\tBING COUNT for keyword::" + query + " IS --->>" + counter);
+		countDownLatchForImageURLs.countDown();
+		
+	}
+
+	public Document getDocumentPerCall(String scrapedImageURL, String contributor, String license, String synsetCode, String query, int rank) {
 
 		// Prepare batch records for batch insertion in "image_urls_b" table.
-		MongoDBImageURLsB mongoDBImageUrlsB = new MongoDBImageURLsB();
 		Document datasetRecord = new Document();
-		datasetRecord.append("url", scrapedImageURL);
+		//datasetRecord.append("url", scrapedImageURL);
+		
+		Document primaryKeyId = new Document();
+		primaryKeyId.append("url", scrapedImageURL).append("category", synsetCode);
+		datasetRecord.append("_id", primaryKeyId);
 		datasetRecord.append("contributor", contributor);
 		datasetRecord.append("license", license);
-		datasetRecord.append("safeSearch", safeSearch);
 		datasetRecord.append("source", SOURCE);
+		datasetRecord.append("keyword", query);
+		//datasetRecord.append("category", synsetCode);
+		datasetRecord.append("pushToSamaHub", false);
+		datasetRecord.append("taskId", null);
+		datasetRecord.append("rank", rank);
 		return datasetRecord;
-
 	}
 	
 	public void insertData(List<Document> documents) {

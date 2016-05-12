@@ -11,6 +11,7 @@ import com.mongodb.async.client.MongoCollection;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.DeleteOneModel;
+import com.mongodb.client.model.InsertManyOptions;
 import com.mongodb.client.model.InsertOneModel;
 import com.mongodb.client.model.ReplaceOneModel;
 import com.mongodb.client.model.UpdateOneModel;
@@ -23,17 +24,21 @@ public class MongoDBImageURLsB {
 	SingleResultCallback<BulkWriteResult> printBatchResult = new SingleResultCallback<BulkWriteResult>() {
 	    @Override
 	    public void onResult(final BulkWriteResult result, final Throwable t) {
-	        System.out.println("Insert Many operations have been completed --> " + result);
+	        //System.out.println("Insert Many operations have been completed --> " + result);
 	    }
 	};
 	
 	public void insertMany(List<Document> documents) {
 		
-		collection.insertMany(documents, (result, t)-> {
+		
+		InsertManyOptions insertManyOptions = new InsertManyOptions();
+		insertManyOptions.ordered(false);//For continuing in case there is error in batch result.
+
+		collection.insertMany(documents, insertManyOptions, (result, t)-> {
 			OptionalConsumer.of(Optional.ofNullable(t)).
 			ifPresent(
 					s -> {
-						System.out.println("Insertion failed, cause " + s);
+						////System.out.println("Insertion failed, cause " + s);
 						//Do not trigger anything.
 						//Do other rollback activities or simple log error and/or retry.
 					}
@@ -42,7 +47,7 @@ public class MongoDBImageURLsB {
 			ifNotPresent(
 					
 					() -> {
-						System.out.println("Insertion Successful for records of size : " + documents.size());
+						//System.out.println("Insertion Successful for records of size : " + documents.size());
 
 						//Create trigger to insert into image URL b
 						

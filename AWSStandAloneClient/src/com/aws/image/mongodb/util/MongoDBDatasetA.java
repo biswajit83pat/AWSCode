@@ -9,12 +9,11 @@ import org.json.JSONException;
 
 import com.aws.image.bing.BingAPI;
 import com.aws.image.flickr.FlickrAPI;
-import com.aws.image.mongodb.MongoDBService;
 import com.mongodb.async.client.MongoCollection;
 
 public class MongoDBDatasetA {
 	
-	public static final int IMAGES_LIMIT_PER_CATEGORY_FOR_FLICKR_AND_BING = 1000;
+	public static final int IMAGES_LIMIT_PER_CATEGORY_FOR_FLICKR_AND_BING = 1250;
 	
 	private MongoCollection<Document> collection = MongoDBConnector.INSTANCE.getAsyncDatabase().getCollection(MongoDBConfigLoader.getMongoDBDataSetTableName());
 	
@@ -39,13 +38,14 @@ public class MongoDBDatasetA {
 			ifNotPresent(
 					
 					() -> {
-						System.out.println("Insertion Successful!");
+						//System.out.println("Insertion Successful!");
 
 						//Create trigger to insert into image URL b
-						String synset_code = (String) document.get("synset_code");
+						String synset_code = (String) document.get("_id");
 						String keywords = (String) document.get("keyword");
+						String safeSearch = (String) document.get("safeSearch");
 						try {
-							callingAPIs(synset_code, keywords);
+							callingAPIs(synset_code, keywords, safeSearch);
 						} catch (Exception e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
@@ -66,7 +66,7 @@ public class MongoDBDatasetA {
 		
 	}
 	
-	public void callingAPIs(String synset_code, String keywords) throws IOException, JSONException
+	public void callingAPIs(String synset_code, String keywords, String safeSearch) throws IOException, JSONException
 	{
 		
 		BingAPI bingObj = new BingAPI(countDownLatchForImageURLs);
@@ -77,9 +77,6 @@ public class MongoDBDatasetA {
 
 		// Only if Insert then start processing
 
-		String safeSearchDefault = "Strict";// TODO need to get value from
-											// safeSearch variable
-		
 		String[] keywordFragments = keywords.split(",");
 
 		double ceilingvalue = Math.ceil(IMAGES_LIMIT_PER_CATEGORY_FOR_FLICKR_AND_BING/keywordFragments.length);
@@ -88,8 +85,10 @@ public class MongoDBDatasetA {
 
 		for (int i = 0; i < keywordFragments.length; i++) {
 
-			bingObj.callBingAPIForEachKeyword(keywordFragments[i], synset_code, safeSearchDefault, urlsPerKeyword);
-			flickrObj.callFlickrAPIForEachKeyword(keywordFragments[i], synset_code, safeSearchDefault, urlsPerKeyword);
+			String query = keywordFragments[i] != null ? keywordFragments[i].trim() : null;
+			
+			bingObj.callBingAPIForEachKeyword(query, synset_code, safeSearch != null && safeSearch.equalsIgnoreCase("true") ? "Strict" : "Off", urlsPerKeyword);
+			flickrObj.callFlickrAPIForEachKeyword(query, synset_code, safeSearch != null && safeSearch.equalsIgnoreCase("true") ? "restricted" : "safe", urlsPerKeyword);
 		}
 
 		

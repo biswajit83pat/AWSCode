@@ -24,8 +24,6 @@ public class FlickrAPI {
 
 	private final static String SOURCE = "FLICKR";
 	
-	static int counter = 0;
-	
 	private CountDownLatch countDownLatchForImageURLs;
 	
 	public FlickrAPI(CountDownLatch countDownLatchForImageURLs) {
@@ -33,15 +31,23 @@ public class FlickrAPI {
 	}
 	
     public String callFlickrAPIForEachKeyword(String query, String synsetCode, String safeSearch, int urlsPerKeyword) throws IOException, JSONException {
-    	String apiKey = "ad4f88ecfd53b17f93178e19703fe00d";
-    	String apiSecret = "96cab0e9f89468d6";
+    	String apiKey = "5dfc9f4453ed8205f230164a5ff484b1";
+    	String apiSecret = "71693b1aea42a504";
     	
 		int total = 500;
 		int perPage = 500;
 		
+		int rankCounter = 0;
+		int counter = 0;
+		
 		System.out.println("\n\t\t KEYWORD::" + query);
     	System.out.println("\t No. of urls required::" + urlsPerKeyword);
     	int totalPages;
+    	
+    	if(query == null || "".equals(query.trim())) {
+			return null;
+		}
+    	
     	if(urlsPerKeyword%perPage != 0)
     		totalPages = (urlsPerKeyword/perPage) + 1;
     	else
@@ -131,11 +137,9 @@ public class FlickrAPI {
 							
 				//System.out.println("Scraped Image URL, need to insert this to Mongo DB --> " + scrapedImageURL);
 				
-				documentsInBatch.add(getDocumentPerCall(scrapedImageURL, contributor, license, safeSearch));
-				
+				documentsInBatch.add(getDocumentPerCall(scrapedImageURL, contributor, license, synsetCode, query, ++rankCounter));
 				
 				counter++;
-							
 			}
 			
 			insertData(documentsInBatch);
@@ -148,17 +152,24 @@ public class FlickrAPI {
     	return null;
     }
 
-	public Document getDocumentPerCall(String scrapedImageURL, String contributor, String license, String safeSearch) {
+	public Document getDocumentPerCall(String scrapedImageURL, String contributor, String license, String synsetCode, String query, int rank) {
 
 		// Prepare batch records for batch insertion in "image_urls_b" table.
 		Document datasetRecord = new Document();
-		datasetRecord.append("url", scrapedImageURL);
+		//datasetRecord.append("url", scrapedImageURL);
+		
+		Document primaryKeyId = new Document();
+		primaryKeyId.append("url", scrapedImageURL).append("category", synsetCode);
+		datasetRecord.append("_id", primaryKeyId);
 		datasetRecord.append("contributor", contributor);
 		datasetRecord.append("license", license);
-		datasetRecord.append("safeSearch", safeSearch);
 		datasetRecord.append("source", SOURCE);
+		datasetRecord.append("keyword", query);
+		//datasetRecord.append("category", synsetCode);
+		datasetRecord.append("pushToSamaHub", false);
+		datasetRecord.append("taskId", null);
+		datasetRecord.append("rank", rank);
 		return datasetRecord;
-
 	}
 	
 	public void insertData(List<Document> documents) {
